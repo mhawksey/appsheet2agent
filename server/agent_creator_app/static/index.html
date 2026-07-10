@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AppSheet Agent Creator & ARD Generator</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+    <!-- Global Progress Loading Overlay Modal -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loading-modal">
+            <div class="spinner"></div>
+            <div id="loading-title" class="loading-title">Processing Request...</div>
+            <div id="loading-subtitle" class="loading-subtitle">Please wait while AppSheet Agent Creator prepares your data.</div>
+        </div>
+    </div>
+
+    <!-- AppSheet Style Multi-Pane Wrapper -->
+    <div class="main-wrapper">
+        <!-- Right Side Container (Header + Grid Workspace) -->
+        <div class="app-container" style="max-width: 100vw;">
+            <!-- Header/Navbar -->
+            <header class="navbar">
+                <div class="logo">
+                    <span class="icon">⚡</span>
+                    <h1>AppSheet Agent Creator Studio</h1>
+                </div>
+                <!-- Auth & User Email Control -->
+                <div class="auth-box">
+                    <div id="g_id_onload"
+                         data-client_id="438373470244-pjcticpsqu5qcuoier6cr6q1chknuc4j.apps.googleusercontent.com"
+                         data-callback="handleCredentialResponse"
+                         data-auto_prompt="false">
+                    </div>
+                    <div class="g_id_signin" data-type="standard" data-size="medium" data-theme="outline"></div>
+
+                    <span id="user-email-badge" class="badge">Not logged in</span>
+
+                    <div class="dev-email-container">
+                        <input type="email" id="dev-email-input" placeholder="Or enter user email manually..." style="font-size: 0.8rem; padding: 4px 8px; width: 220px;">
+                    </div>
+                </div>
+            </header>
+
+            <!-- Workspace Layout -->
+            <main class="grid-layout">
+                <!-- Column 1: Connection & Specs (Configuration Sidebar) -->
+                <aside class="sidebar-config">
+                    <!-- Saved Agent Loader Card -->
+                    <div class="card config-card">
+                        <h3>📁 Saved AppSheet Agents</h3>
+                        <p class="config-desc">Manage agents from AppSheet Management App</p>
+                        <div class="form-group" style="margin-top: 10px;">
+                            <select id="saved-agents-select" style="width: 100%;">
+                                <option value="">-- Select Saved Agent --</option>
+                            </select>
+                            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                <button id="refresh-agents-btn" class="btn btn-secondary" style="flex: 1; padding: 8px 12px; font-size: 0.8rem;">Refresh</button>
+                                <button id="save-mgmt-btn" class="btn btn-secondary" style="flex: 1; padding: 8px 12px; font-size: 0.8rem;">Save</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- App Specifications Upload -->
+                    <div class="card config-card">
+                        <h3>🔌 App Specifications</h3>
+                        <form id="upload-form" class="form-group" style="margin-top: 10px;">
+                            <label for="openapi-file">AppSheet openapi.json <span class="required">*</span></label>
+                            <input type="file" id="openapi-file" accept=".json">
+
+                            <label for="doc-file">Application Documentation (.pdf)</label>
+                            <input type="file" id="doc-file" accept=".pdf">
+
+                            <button type="submit" id="parse-btn" class="btn btn-primary" style="margin-top: 6px;">Parse Spec & Connect</button>
+                        </form>
+                        <div id="parse-status" class="status-box hidden" style="margin-top: 10px; font-size: 0.8rem; padding: 8px 12px;"></div>
+                    </div>
+
+                    <!-- Connection Credentials -->
+                    <div class="card config-card">
+                        <h3>🔑 Connection Credentials</h3>
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label for="app-id">AppSheet App ID</label>
+                            <input type="text" id="app-id" placeholder="e.g. 40c823df-3005-...">
+
+                            <label for="access-key">Application Access Key</label>
+                            <input type="password" id="access-key" placeholder="V2-xxxx-xxxx-xxxx">
+
+                            <label for="region">Region Domain</label>
+                            <select id="region">
+                                <option value="www.appsheet.com">Global (www.appsheet.com)</option>
+                                <option value="eu.appsheet.com">Europe (eu.appsheet.com)</option>
+                                <option value="asia-southeast.appsheet.com">Asia Pacific (asia-southeast)</option>
+                            </select>
+
+                            <!-- Advanced Configuration -->
+                            <div style="background: var(--bg-hover); padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); margin-top: 4px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="vertex-mode" style="width: auto; cursor: pointer;">
+                                    <label for="vertex-mode" style="margin: 0; cursor: pointer; color: var(--accent); font-weight: 600; font-size: 0.8rem;">GCP Vertex AI Mode</label>
+                                </div>
+                                <div id="gcp-project-box" class="hidden" style="margin-top: 8px;">
+                                    <label for="gcp-project" style="font-size: 0.75rem;">GCP Project ID</label>
+                                    <input type="text" id="gcp-project" placeholder="e.g. my-project-id" style="padding: 6px 10px; font-size: 0.8rem;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Column 2: Chat Workspace & Generation & Deployment -->
+                <section class="workspace-chat">
+                    <!-- Safety Alert Banner -->
+                    <div class="alert alert-warning" style="margin-bottom: 16px;">
+                        <span class="alert-icon">🛡️</span>
+                        <div>
+                            <strong>Zero-Trust Antigravity Policies Active</strong>
+                            <p>OAuth identity delegation is enforced on all AppSheet operations via <code>RunAsUserEmail</code>.</p>
+                        </div>
+                    </div>
+
+                    <div class="card chat-card" style="display: flex; flex-direction: column;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h2 style="margin: 0;">💬 Agent Design Sandbox</h2>
+                            <button id="download-chat-btn" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.75rem;">Download Log</button>
+                        </div>
+
+                        <div class="chat-container">
+                            <div id="chat-messages" class="chat-messages">
+                                <div class="chat-bubble bot-bubble">
+                                    👋 Welcome! Upload your <code>openapi.json</code> spec file on the left or select a saved agent from the dropdown to start designing your Gemini Enterprise AI Agent!
+                                </div>
+                            </div>
+                            <div class="chat-input-row">
+                                <input type="text" id="chat-input" placeholder="Discuss design rules e.g. 'I want users to log new inspections'..." disabled>
+                                <button id="send-btn" class="btn btn-primary" disabled>Send</button>
+                            </div>
+                        </div>
+
+                        <!-- Generation Button Action -->
+                        <div id="generate-btn-container" class="generate-btn-container hidden" style="margin-top: 14px;">
+                            <button id="generate-btn" class="btn btn-generate" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px;" disabled>
+                                <span>⚡</span> Generate Agent Package & ARD Spec
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Deployed Registration payloads (Shown upon successful Generation) -->
+                    <div id="deployment-section" class="hidden" style="margin-top: 20px;">
+                        <div class="card deployment-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                                <h3 style="margin: 0;">🚀 Deployment & Registration</h3>
+                                <div style="display: flex; gap: 6px;">
+                                    <button id="show-deploy-guide-btn" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.75rem;" disabled>Deployment Script</button>
+                                    <button id="download-zip-btn" class="btn btn-primary" style="padding: 6px 10px; font-size: 0.75rem;" disabled>Download ZIP</button>
+                                </div>
+                            </div>
+
+                            <p class="config-desc" style="color: var(--accent); margin-bottom: 12px;">
+                                💡 <strong>Instruction:</strong> Deploy the ZIP to Cloud Run first, then paste the assigned live Service URL below to update the registration JSON in real time!
+                            </p>
+
+                            <!-- Post-Deployment Deployed URL input -->
+                            <div class="form-group" style="background: var(--bg-hover); padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 14px;">
+                                <label for="service-url" style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 4px;">🔗 Deployed Cloud Run Service URL</label>
+                                <input type="text" id="service-url" placeholder="https://appsheet-agent-xxx.run.app" value="https://facility-inspections-agent-xyz.a.run.app" style="width: 100%;">
+                            </div>
+
+                            <!-- Customized Deployment Script Guide (Toggled via button) -->
+                            <div id="deploy-guide-box" class="code-box hidden" style="margin-bottom: 14px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <strong style="font-size: 0.75rem; color: var(--accent);">gcloud Deployment Commands</strong>
+                                    <button id="copy-deploy-script-btn" class="btn btn-secondary" style="padding: 2px 6px; font-size: 0.7rem;">Copy</button>
+                                </div>
+                                <pre><code id="deploy-commands-output"># Deploy to Google Cloud Run...</code></pre>
+                            </div>
+
+                            <!-- Gemini Enterprise Registration payload console -->
+                            <div class="code-panel">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">Gemini Enterprise Admin Registration JSON</label>
+                                    <button id="copy-btn" class="btn btn-secondary" style="padding: 2px 6px; font-size: 0.7rem;">Copy Payload</button>
+                                </div>
+                                <div class="code-box" style="max-height: 250px;">
+                                    <pre><code id="json-output">// Registration JSON will appear here...</code></pre>
+                                </div>
+                            </div>
+
+                            <!-- OAuth Authorization Helper -->
+                            <div style="margin-top: 18px; border-top: 1px dashed var(--border-color); padding-top: 16px;">
+                                <h4 style="margin: 0 0 6px 0; display: flex; align-items: center; gap: 6px; font-size: 0.85rem;">🔑 OAuth 2.0 Registration Helper</h4>
+                                <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px;">
+                                    Generate the authorization values required under the <strong>Agent authorization</strong> page in Gemini Enterprise.
+                                </p>
+                                
+                                <div class="form-group" style="margin-bottom: 12px;">
+                                    <label for="oauth-client-id" style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 4px;">Google Client ID</label>
+                                    <input type="text" id="oauth-client-id" placeholder="Enter your client ID (e.g. xxx.apps.googleusercontent.com)" style="width: 100%; font-size: 0.8rem; padding: 6px 8px;">
+                                </div>
+
+                                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.75rem; background: var(--bg-hover); padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                                    <div>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                                            <strong style="color: var(--text-muted);">Authorization URL</strong>
+                                            <button id="copy-auth-url-btn" class="btn btn-secondary" style="padding: 1px 4px; font-size: 0.65rem;" disabled>Copy</button>
+                                        </div>
+                                        <pre style="margin: 0; padding: 4px 6px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; overflow-x: auto; white-space: pre-wrap; font-size: 0.7rem; color: var(--accent);"><code id="auth-url-output">Please enter your Client ID above...</code></pre>
+                                    </div>
+                                    
+                                    <div>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                                            <strong style="color: var(--text-muted);">Token URL</strong>
+                                            <button id="copy-token-url-btn" class="btn btn-secondary" style="padding: 1px 4px; font-size: 0.65rem;">Copy</button>
+                                        </div>
+                                        <pre style="margin: 0; padding: 4px 6px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; overflow-x: auto; font-size: 0.7rem; color: var(--accent);"><code id="token-url-output">https://oauth2.googleapis.com/token</code></pre>
+                                    </div>
+
+                                    <div>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                                            <strong style="color: var(--text-muted);">Scopes</strong>
+                                            <button id="copy-scopes-btn" class="btn btn-secondary" style="padding: 1px 4px; font-size: 0.65rem;">Copy</button>
+                                        </div>
+                                        <pre style="margin: 0; padding: 4px 6px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; overflow-x: auto; font-size: 0.7rem; color: var(--accent);"><code id="scopes-output">https://www.googleapis.com/auth/userinfo.email</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Column 3: Mobile Simulator Preview Frame -->
+                <section class="workspace-preview">
+                    <!-- AppSheet Style Mobile Device Simulator Frame -->
+                    <div class="mobile-phone-frame">
+                        <div class="phone-header">
+                            <div class="phone-speaker"></div>
+                        </div>
+                        <div class="phone-screen">
+                            <div class="phone-app-bar">
+                                <span class="app-bar-menu">☰</span>
+                                <span class="app-bar-title">Card Preview</span>
+                                <span class="app-bar-sync">🔄</span>
+                            </div>
+                            <!-- A2UI Cards are rendered dynamically in this screen area -->
+                            <div id="phone-preview-surface" class="phone-preview-surface">
+                                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); text-align: center; padding: 20px;">
+                                    <div style="font-size: 2rem; margin-bottom: 10px;">📱</div>
+                                    <p style="font-size: 0.8rem;">Interactive A2UI Cards will render inside this simulated mobile frame during Specialist consulting!</p>
+                                </div>
+                            </div>
+                            <div class="phone-tab-bar">
+                                <div class="tab-item active">📋 <span>Details</span></div>
+                                <div class="tab-item">⚡ <span>Actions</span></div>
+                            </div>
+                        </div>
+                        <div class="phone-home-button"></div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- UI Core Logic references -->
+    <script src="/static/a2ui_renderer.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
